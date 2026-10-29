@@ -1,6 +1,7 @@
 import type { Vacancy, WorkFormat } from "./types.js";
 
-export const SOURCE_IDS = ["workua", "dou", "djinni", "linkedin", "bebee", "levelsfyi", "greenhouse"] as const;
+export const SOURCE_IDS = ["workua", "dou", "djinni", "linkedin", "bebee", "levelsfyi", "greenhouse",
+  "jobicy", "arbeitnow", "remoteok", "wwr"] as const;
 export type SourceId = typeof SOURCE_IDS[number];
 
 export interface SearchFilters {

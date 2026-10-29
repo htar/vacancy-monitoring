@@ -10,7 +10,7 @@ export class TelegramBot {
   private offset = 0;
   private stopped = false;
   constructor(private token: string, private chatId: string,
-    private runScan: () => Promise<ScanSummary>, private startedAt = new Date()) {}
+    private runScan: () => Promise<ScanSummary>, private telegramChannels: string[] = [], private startedAt = new Date()) {}
 
   private async call(method: string, body: Record<string, unknown>): Promise<any> {
     const response = await fetch(`https://api.telegram.org/bot${this.token}/${method}`, {
@@ -91,6 +91,19 @@ export class TelegramBot {
       filters.sources = next;
       store.saveFilters(filters); return `✅ ${id}: ${mode}`;
     }
+    if (command === "/tgchannels") return this.telegramChannels.length
+      ? `📨 <b>Telegram-канали (${this.telegramChannels.length})</b>\n${this.telegramChannels.map((c) => `• @${escape(c)}`).join("\n")}\n\n/tgchannel add|remove @username`
+      : "📨 Telegram-канали вимкнені. Додати: /tgchannel add @username";
+    if (command === "/tgchannel") {
+      const [mode, raw] = args.split(/\s+/); const channel = raw?.replace(/^@/, "");
+      if (!channel || !/^[A-Za-z0-9_]{5,32}$/.test(channel) || !["add", "remove"].includes(mode ?? ""))
+        return "❌ /tgchannel add @username або /tgchannel remove @username";
+      if (mode === "add" && !this.telegramChannels.some((c) => c.toLowerCase() === channel.toLowerCase())) this.telegramChannels.push(channel);
+      if (mode === "remove") this.telegramChannels.splice(0, this.telegramChannels.length,
+        ...this.telegramChannels.filter((c) => c.toLowerCase() !== channel.toLowerCase()));
+      store.setSetting("telegram_channels", JSON.stringify(this.telegramChannels));
+      return `✅ @${escape(channel)} ${mode === "add" ? "додано" : "видалено"}`;
+    }
     if (command === "/scan") {
       const s = await this.runScan(); return `✅ Перевірено: ${s.fetched}\nВідповідають: ${s.matched}\nНових: ${s.added}\nПомилки: ${s.failedSources.join(", ") || "немає"}`;
     }
@@ -98,14 +111,16 @@ export class TelegramBot {
       const s = store.stats(); const uptime = Math.floor((Date.now() - this.startedAt.getTime()) / 60_000);
       return `🩺 Uptime: ${uptime} хв.\nЗбережено: ${s.processed}\nНадіслано: ${s.notified ?? 0}\nУ черзі: ${s.pending ?? 0}`;
     }
-    return undefined;
+    return command.startsWith("/")
+      ? "❌ Невідома команда. Список: /help"
+      : "❌ Це не команда. Налаштування задаються окремими командами, наприклад:\n/search frontend, react, typescript\n/format any\n/days 2\n/salary 2500\n\nУсі команди: /help";
   }
 
   private filters(f: SearchFilters) {
     return `🔎 <b>Фільтри</b>\nКлючові слова: ${escape(f.search.join(", "))}\nВиключення: ${escape(f.exclude.join(", ") || "немає")}\nКраїна: ${f.countryCode || "будь-яка"}\nФормат: ${f.workFormat}\nДавність: ${f.postedWithinDays} дн.\nЗарплата: ${f.minSalaryUsd || "—"} USD\nДжерела: ${f.sources.join(", ")}`;
   }
   private help() {
-    return "💼 <b>Vacancy Monitor</b>\n/search frontend, react — ключові слова\n/exclude senior, lead — виключення\n/country UA — країна\n/format any|remote|onsite\n/days 7 — давність\n/salary 1500 — мінімум USD\n/sources — джерела\n/source on|off workua\n/filters — налаштування\n/scan — перевірити зараз\n/status — стан\n/help — довідка";
+    return "💼 <b>Vacancy Monitor</b>\n/search frontend, react — ключові слова\n/exclude senior, lead — виключення\n/country UA — країна\n/format any|remote|onsite\n/days 7 — давність\n/salary 1500 — мінімум USD\n/sources — API/RSS джерела\n/source on|off jobicy\n/tgchannels — Telegram-канали\n/tgchannel add|remove @username\n/filters — налаштування\n/scan — перевірити зараз\n/status — стан\n/help — довідка";
   }
   stop() { this.stopped = true; }
 }

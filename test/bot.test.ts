@@ -16,10 +16,12 @@ test("authorized Telegram commands update and persist search filters", async () 
   const store = new Store(join(dir, "test.sqlite"));
   const filters: SearchFilters = { search: ["react"], exclude: [], countryCode: "UA", workFormat: "any",
     postedWithinDays: 7, minSalaryUsd: 0, sources: ["dou", "workua"] };
+  const channels = ["junior_dou_ua"];
   const bot = new TelegramBot("token", "42", async () =>
-    ({ fetched: 5, matched: 2, added: 1, failedSources: [] }));
+    ({ fetched: 5, matched: 2, added: 1, failedSources: [] }), channels);
   const texts = ["/search vue, typescript", "/exclude senior", "/country off", "/format remote",
-    "/days 14", "/salary 2000", "/source off workua", "/filters", "/scan", "/status"];
+    "/days 14", "/salary 2000", "/source off workua", "/tgchannel add @frontend_dou",
+    "/tgchannel remove @junior_dou_ua", "/tgchannels", "/filters", "/scan", "/status"];
   const sent: string[] = [];
   let polls = 0;
   globalThis.fetch = async (url, init) => {
@@ -42,6 +44,8 @@ test("authorized Telegram commands update and persist search filters", async () 
     assert.equal(filters.postedWithinDays, 14);
     assert.equal(filters.minSalaryUsd, 2000);
     assert.deepEqual(filters.sources, ["dou"]);
+    assert.deepEqual(channels, ["frontend_dou"]);
+    assert.equal(store.getSetting("telegram_channels"), '["frontend_dou"]');
     assert.deepEqual(store.loadFilters(), filters);
     assert.ok(sent.some((text) => text.includes("Перевірено: 5")));
   } finally {

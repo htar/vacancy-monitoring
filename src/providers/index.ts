@@ -7,11 +7,17 @@ import { fetchLinkedInVacancies } from "./linkedin.js";
 import { fetchBebeeVacancies } from "./bebee.js";
 import { fetchLevelsFyiVacancies } from "./levelsfyi.js";
 import { fetchGreenhouseVacancies } from "./greenhouse.js";
+import { fetchJobicyVacancies } from "./jobicy.js";
+import { fetchArbeitnowVacancies } from "./arbeitnow.js";
+import { fetchRemoteOkVacancies } from "./remoteok.js";
+import { fetchWwrVacancies } from "./wwr.js";
 
 const providers: Record<SourceId, (p: { search: string; countryCode: string }) => Promise<Vacancy[]>> = {
   workua: fetchWorkUaVacancies, dou: fetchDouVacancies, djinni: fetchDjinniVacancies,
   linkedin: fetchLinkedInVacancies, bebee: fetchBebeeVacancies,
-  levelsfyi: fetchLevelsFyiVacancies, greenhouse: fetchGreenhouseVacancies
+  levelsfyi: fetchLevelsFyiVacancies, greenhouse: fetchGreenhouseVacancies,
+  jobicy: fetchJobicyVacancies, arbeitnow: fetchArbeitnowVacancies,
+  remoteok: fetchRemoteOkVacancies, wwr: fetchWwrVacancies
 };
 
 export async function fetchVacancies(sources: SourceId[], search: string, countryCode: string) {

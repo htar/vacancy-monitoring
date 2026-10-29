@@ -7,6 +7,8 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "chat-id": "tsx src/get-chat-id.ts",
+    "session": "tsx src/create-session.ts",
+    "session:qr": "tsx src/create-session-qr.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/**/*.test.ts"
   },
@@ -14,13 +16,18 @@
     "better-sqlite3": "13.0.3",
     "cheerio": "^1.2.0",
     "dotenv": "18.0.9",
+    "qrcode-terminal": "^0.12.0",
+    "teleproto": "^1.232.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/better-sqlite3": "7.6.13",
     "@types/node": "24.10.1",
+    "@types/qrcode-terminal": "^0.12.2",
     "tsx": "4.23.15",
     "typescript": "7.0.2"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

@@ -16,7 +16,12 @@ export type VacancySourceId =
   | 'climatebase'
   | 'mercor'
   | 'hirify'
-  | 'consider';
+  | 'consider'
+  | 'jobicy'
+  | 'arbeitnow'
+  | 'remoteok'
+  | 'wwr'
+  | 'telegram';
 
 export interface Vacancy {
   id: string;
