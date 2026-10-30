@@ -1,6 +1,6 @@
 import type { Vacancy } from "./types.js";
 import type { SearchFilters } from "./search.js";
-import { matchesFilters } from "./search.js";
+import { rejectReason } from "./search.js";
 import { fetchVacancies } from "./providers/index.js";
 import type { Store } from "./database.js";
 
@@ -18,7 +18,9 @@ export async function scan(store: Store, filters: SearchFilters): Promise<ScanSu
   let matched = 0;
   let added = 0;
   for (const vacancy of unique.values()) {
-    if (!matchesFilters(vacancy, filters)) continue;
+    const reason = rejectReason(vacancy, filters);
+    store.recordSeen(vacancy, reason);
+    if (reason) continue;
     matched += 1;
     if (store.saveVacancy(vacancy)) added += 1;
   }

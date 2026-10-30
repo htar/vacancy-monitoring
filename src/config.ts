@@ -7,6 +7,8 @@ const schema = z.object({
   BOT_CHAT_ID: z.string().min(1),
   DATABASE_PATH: z.string().default("./data/vacancies.sqlite"),
   POLL_INTERVAL_MIN: z.coerce.number().min(1).default(15),
+  /** Година (0–23, за місцевим часом), о якій надсилати звіт за попередню добу. */
+  DAILY_REPORT_HOUR: z.coerce.number().int().min(0).max(23).default(7),
   TG_API_ID: z.preprocess((v) => v === "" ? undefined : v, z.coerce.number().int().positive().optional()),
   TG_API_HASH: z.string().optional(),
   TG_SESSION: z.string().optional()

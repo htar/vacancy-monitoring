@@ -2,7 +2,8 @@ import { loadEnv, DEFAULT_FILTERS, DEFAULT_TELEGRAM_CHANNELS } from "./config.js
 import { Store } from "./database.js";
 import { TelegramBot } from "./bot.js";
 import { scan, flush } from "./scanner.js";
-import { matchesFilters } from "./search.js";
+import { rejectReason } from "./search.js";
+import { formatReport, isReportDue, localDate, previousDate } from "./report.js";
 import { startTelegramCollector } from "./telegram.js";
 
 const env = loadEnv();
@@ -43,7 +44,9 @@ void bot.run(store, filters);
 void monitor().then(async () => {
   stopTelegram = await startTelegramCollector({ apiId: env.TG_API_ID, apiHash: env.TG_API_HASH, session: env.TG_SESSION },
     telegramChannels, async (vacancy) => {
-      if (!matchesFilters(vacancy, filters) || !store.saveVacancy(vacancy)) return;
+      const reason = rejectReason(vacancy, filters);
+      store.recordSeen(vacancy, reason);
+      if (reason || !store.saveVacancy(vacancy)) return;
       await flush(store, (v) => bot.sendVacancy(v));
     });
   if (stopTelegram) await bot.sendText(`📨 Telegram collector активний: ${telegramChannels.length} каналів.`);
@@ -51,8 +54,26 @@ void monitor().then(async () => {
 const timer = setInterval(() => void monitor(), env.POLL_INTERVAL_MIN * 60_000);
 const queueTimer = setInterval(() => { if (!scanning) void flush(store, (v) => bot.sendVacancy(v)); }, 10_000);
 
+// Щоранку о DAILY_REPORT_HOUR — звіт за попередню календарну добу.
+let reporting = false;
+async function dailyReport() {
+  const now = new Date();
+  if (reporting || !isReportDue(now, env.DAILY_REPORT_HOUR, store.getSetting("daily_report_last_date"))) return;
+  reporting = true;
+  try {
+    const day = previousDate(now);
+    const stats = store.reportStats(day);
+    // Якщо вчора бот не працював, порожній звіт не надсилаємо.
+    if (stats.seen > 0) await bot.sendText(formatReport(stats, `Підсумок за ${day}`));
+    store.setSetting("daily_report_last_date", localDate(now));
+    store.pruneSeenLog(now);
+  } catch (error) { console.error("Daily report failed:", error); }
+  finally { reporting = false; }
+}
+const reportTimer = setInterval(() => void dailyReport(), 60_000);
+
 async function shutdown() {
-  clearInterval(timer); clearInterval(queueTimer); bot.stop();
+  clearInterval(timer); clearInterval(queueTimer); clearInterval(reportTimer); bot.stop();
   await scanning; await stopTelegram?.(); store.close(); process.exit(0);
 }
 process.once("SIGINT", () => void shutdown());

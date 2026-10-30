@@ -3,6 +3,7 @@ import type { SearchFilters, SourceId } from "./search.js";
 import { SOURCE_IDS, salaryUsd } from "./search.js";
 import type { Vacancy } from "./types.js";
 import type { ScanSummary } from "./scanner.js";
+import { formatReport, localDate, previousDate } from "./report.js";
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -107,6 +108,13 @@ export class TelegramBot {
     if (command === "/scan") {
       const s = await this.runScan(); return `✅ Перевірено: ${s.fetched}\nВідповідають: ${s.matched}\nНових: ${s.added}\nПомилки: ${s.failedSources.join(", ") || "немає"}`;
     }
+    if (command === "/report") {
+      const now = new Date();
+      const day = args.trim() === "yesterday" ? previousDate(now) : localDate(now);
+      return formatReport(store.reportStats(day), day === localDate(now)
+        ? `Підсумок за сьогодні (${day}, до ${now.toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })})`
+        : `Підсумок за ${day}`);
+    }
     if (command === "/status" || command === "/health") {
       const s = store.stats(); const uptime = Math.floor((Date.now() - this.startedAt.getTime()) / 60_000);
       return `🩺 Uptime: ${uptime} хв.\nЗбережено: ${s.processed}\nНадіслано: ${s.notified ?? 0}\nУ черзі: ${s.pending ?? 0}`;
@@ -120,7 +128,7 @@ export class TelegramBot {
     return `🔎 <b>Фільтри</b>\nКлючові слова: ${escape(f.search.join(", "))}\nВиключення: ${escape(f.exclude.join(", ") || "немає")}\nКраїна: ${f.countryCode || "будь-яка"}\nФормат: ${f.workFormat}\nДавність: ${f.postedWithinDays} дн.\nЗарплата: ${f.minSalaryUsd || "—"} USD\nДжерела: ${f.sources.join(", ")}`;
   }
   private help() {
-    return "💼 <b>Vacancy Monitor</b>\n/search frontend, react — ключові слова\n/exclude senior, lead — виключення\n/country UA — країна\n/format any|remote|onsite\n/days 7 — давність\n/salary 1500 — мінімум USD\n/sources — API/RSS джерела\n/source on|off jobicy\n/tgchannels — Telegram-канали\n/tgchannel add|remove @username\n/filters — налаштування\n/scan — перевірити зараз\n/status — стан\n/help — довідка";
+    return "💼 <b>Vacancy Monitor</b>\n/search frontend, react — ключові слова\n/exclude senior, lead — виключення\n/country UA — країна\n/format any|remote|onsite\n/days 7 — давність\n/salary 1500 — мінімум USD\n/sources — API/RSS джерела\n/source on|off jobicy\n/tgchannels — Telegram-канали\n/tgchannel add|remove @username\n/filters — налаштування\n/scan — перевірити зараз\n/report — підсумок за сьогодні\n/report yesterday — за вчора\n/status — стан\n/help — довідка";
   }
   stop() { this.stopped = true; }
 }

@@ -3,6 +3,18 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { Vacancy } from "./types.js";
 import type { SearchFilters } from "./search.js";
+import { salaryUsd } from "./search.js";
+import { localDate } from "./report.js";
+
+export interface ReportStats {
+  day: string;
+  seen: number;
+  matched: number;
+  sent: number;
+  avgSalaryUsd?: number;
+  withSalary: number;
+  topReasons: Array<{ reason: string; count: number }>;
+}
 
 export class Store {
   private readonly db: Database.Database;
@@ -23,6 +35,11 @@ export class Store {
       CREATE TABLE IF NOT EXISTS saved_vacancies (
         id TEXT NOT NULL, source TEXT NOT NULL, saved_at TEXT NOT NULL, PRIMARY KEY(id, source)
       );
+      CREATE TABLE IF NOT EXISTS seen_log (
+        day TEXT NOT NULL, id TEXT NOT NULL, source TEXT NOT NULL, seen_at TEXT NOT NULL,
+        matched INTEGER NOT NULL, reason TEXT, salary_usd REAL, sent INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(day, id, source)
+      );
     `);
   }
 
@@ -42,6 +59,36 @@ export class Store {
   markNotified(v: Vacancy): void {
     this.db.prepare(`UPDATE vacancies SET notified_at = ?, retry_count = 0, next_attempt_at = NULL, last_error = NULL
       WHERE id = ? AND source = ?`).run(new Date().toISOString(), v.id, v.source);
+    this.db.prepare(`INSERT INTO seen_log (day, id, source, seen_at, matched, salary_usd, sent)
+      VALUES (?, ?, ?, ?, 1, ?, 1) ON CONFLICT(day, id, source) DO UPDATE SET sent = 1`)
+      .run(localDate(new Date()), v.id, v.source, new Date().toISOString(), salaryUsd(v) ?? null);
+  }
+
+  /** Фіксує, що вакансію переглянуто сьогодні (за місцевим часом); reason — чому відхилено. */
+  recordSeen(v: Vacancy, reason: string | undefined, now = new Date()): void {
+    this.db.prepare(`INSERT INTO seen_log (day, id, source, seen_at, matched, reason, salary_usd)
+      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(day, id, source)
+      DO UPDATE SET matched = excluded.matched, reason = excluded.reason, salary_usd = excluded.salary_usd`)
+      .run(localDate(now), v.id, v.source, now.toISOString(), reason ? 0 : 1, reason ?? null, salaryUsd(v) ?? null);
+  }
+
+  /** Статистика за календарний день у форматі YYYY-MM-DD. */
+  reportStats(day: string): ReportStats {
+    const totals = this.db.prepare(`SELECT COUNT(*) seen, COALESCE(SUM(matched), 0) matched, COALESCE(SUM(sent), 0) sent,
+      AVG(CASE WHEN matched = 1 THEN salary_usd END) avg_salary,
+      COUNT(CASE WHEN matched = 1 THEN salary_usd END) with_salary FROM seen_log WHERE day = ?`)
+      .get(day) as { seen: number; matched: number; sent: number; avg_salary: number | null; with_salary: number };
+    const topReasons = this.db.prepare(`SELECT reason, COUNT(*) count FROM seen_log
+      WHERE day = ? AND matched = 0 AND reason IS NOT NULL GROUP BY reason ORDER BY count DESC, reason LIMIT 3`)
+      .all(day) as Array<{ reason: string; count: number }>;
+    return { day, seen: totals.seen, matched: totals.matched, sent: totals.sent,
+      avgSalaryUsd: totals.avg_salary === null ? undefined : Math.round(totals.avg_salary),
+      withSalary: totals.with_salary, topReasons };
+  }
+
+  /** Прибирає журнал переглядів, старший за 14 днів. */
+  pruneSeenLog(now = new Date()): void {
+    this.db.prepare("DELETE FROM seen_log WHERE seen_at < ?").run(new Date(now.getTime() - 14 * 86_400_000).toISOString());
   }
 
   markAllPendingNotified(): number {
