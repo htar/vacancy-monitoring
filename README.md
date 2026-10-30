@@ -10,6 +10,7 @@
 - збій одного джерела не зупиняє решту;
 - Telegram listener через MTProto з backfill останніх 50 повідомлень кожного каналу;
 - ручний `/scan`, `/status` і `/health`;
+- щоранку о 7:00 (`DAILY_REPORT_HOUR`) — звіт за попередню добу: скільки вакансій переглянуто, скільки підійшло, скільки надіслано, середня зарплата збігів і найчастіші причини відхилення; підсумок на вимогу — `/report` (сьогодні) або `/report yesterday`;
 - працює на Windows, Linux, macOS і в Docker.
 
 ## Налаштування
@@ -30,6 +31,8 @@ npm run chat-id
 ```powershell
 npm start
 ```
+
+Для постійної роботи на Windows налаштуйте [автозапуск](#автозапуск-у-windows).
 
 ## Команди
 
@@ -52,6 +55,7 @@ npm start
 /tgchannel remove @frontend_dou
 /filters
 /scan
+/report
 /status
 /health
 /help
@@ -104,6 +108,16 @@ Unregister-ScheduledTask -TaskName vacancy-monitoring -Confirm:$false   # вид
 ```powershell
 Get-Content logs\bot.log -Tail 50 -Wait   # стежити в реальному часі
 ```
+
+Перевірити, що бот працює:
+
+```powershell
+(Get-ScheduledTask vacancy-monitoring).State    # Running = працює, Ready = зупинено
+Get-ScheduledTaskInfo vacancy-monitoring        # LastRunTime, LastTaskResult
+Get-CimInstance Win32_Process -Filter "name='node.exe'" | Where-Object CommandLine -match 'vacancy-monitoring'
+```
+
+Також можна надіслати боту `/status`. Якщо стан `Ready`, а процесу немає, завдання зупинилося: у логу не буде помилки, а `LastTaskResult` дорівнюватиме `3221225786` (`0xC000013A`, процес закрили ззовні). Завдання працює в межах вашого сеансу Windows (`LogonType Interactive`): при виході із сеансу (log off) воно завершується, а при наступному вході стартує знову (тригер At log on). Щоб воно працювало й без входу, потрібне завдання з тригером At startup і запуском від облікового запису з паролем (потребує прав адміністратора).
 
 Щоб очистити файл, зупиніть завдання й видаліть `logs\bot.log`. Після оновлення коду перезапустіть завдання (`Stop-ScheduledTask`, потім `Start-ScheduledTask`).
 
