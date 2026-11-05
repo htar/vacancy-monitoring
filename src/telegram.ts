@@ -3,6 +3,7 @@ import { StringSession } from "teleproto/sessions/index.js";
 import { NewMessage, EditedMessage } from "teleproto/events/index.js";
 import type { Vacancy } from "./types.js";
 import { guessCountryCode } from "./providers/utils.js";
+import { log, telegramLogger } from "./logger.js";
 
 export interface TelegramCredentials { apiId?: number; apiHash?: string; session?: string; }
 
@@ -31,7 +32,7 @@ export async function startTelegramCollector(credentials: TelegramCredentials, c
   onVacancy: (vacancy: Vacancy) => Promise<void>): Promise<(() => Promise<void>) | undefined> {
   if (!credentials.apiId || !credentials.apiHash || !credentials.session) return undefined;
   const client = new TelegramClient(new StringSession(credentials.session), credentials.apiId, credentials.apiHash,
-    { connectionRetries: 10, autoReconnect: true });
+    { connectionRetries: 10, autoReconnect: true, baseLogger: telegramLogger() });
   await client.connect();
   if (!await client.checkAuthorization()) throw new Error("TG_SESSION не авторизована");
   const active = () => new Set(channels.map((c) => c.toLowerCase()));
@@ -53,7 +54,7 @@ export async function startTelegramCollector(credentials: TelegramCredentials, c
         const vacancy = telegramPostToVacancy(channel, message);
         if (vacancy) await onVacancy(vacancy);
       }
-    } catch (error) { console.warn(`Telegram @${channel} backfill failed:`, error); }
+    } catch (error) { log.warn({ err: error, channel }, "Telegram channel backfill failed"); }
   }
   return async () => { await client.disconnect(); };
 }

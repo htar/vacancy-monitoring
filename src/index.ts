@@ -5,6 +5,7 @@ import { scan, flush } from "./scanner.js";
 import { rejectReason } from "./search.js";
 import { formatReport, isReportDue, localDate, previousDate } from "./report.js";
 import { startTelegramCollector } from "./telegram.js";
+import { log } from "./logger.js";
 
 const env = loadEnv();
 const store = new Store(env.DATABASE_PATH);
@@ -26,11 +27,11 @@ async function monitor() {
       store.setSetting("baseline_created", "true");
       firstRun = false;
       await bot.sendText(`✅ Vacancy Monitor запущено. Створено baseline із ${baseline} поточних вакансій; надалі надсилатиму лише нові.`);
-      console.log(JSON.stringify({ ...summary, baseline, at: new Date().toISOString() }));
+      log.info({ ...summary, baseline }, "baseline created");
       return summary;
     }
     const delivered = await flush(store, (v) => bot.sendVacancy(v));
-    console.log(JSON.stringify({ ...summary, ...delivered, at: new Date().toISOString() }));
+    log.info({ ...summary, ...delivered }, "sources polled");
     return summary;
   })().finally(() => { scanning = undefined; });
   return scanning;
@@ -50,7 +51,7 @@ void monitor().then(async () => {
       await flush(store, (v) => bot.sendVacancy(v));
     });
   if (stopTelegram) await bot.sendText(`📨 Telegram collector активний: ${telegramChannels.length} каналів.`);
-}).catch((error) => console.error("Telegram collector startup failed:", error));
+}).catch((error) => log.error({ err: error }, "Telegram collector startup failed"));
 const timer = setInterval(() => void monitor(), env.POLL_INTERVAL_MIN * 60_000);
 const queueTimer = setInterval(() => { if (!scanning) void flush(store, (v) => bot.sendVacancy(v)); }, 10_000);
 
@@ -67,7 +68,7 @@ async function dailyReport() {
     if (stats.seen > 0) await bot.sendText(formatReport(stats, `Підсумок за ${day}`));
     store.setSetting("daily_report_last_date", localDate(now));
     store.pruneSeenLog(now);
-  } catch (error) { console.error("Daily report failed:", error); }
+  } catch (error) { log.warn({ err: error }, "daily report failed"); }
   finally { reporting = false; }
 }
 const reportTimer = setInterval(() => void dailyReport(), 60_000);
@@ -78,4 +79,4 @@ async function shutdown() {
 }
 process.once("SIGINT", () => void shutdown());
 process.once("SIGTERM", () => void shutdown());
-console.log(`Vacancy Monitor started; interval ${env.POLL_INTERVAL_MIN} min`);
+log.info({ intervalMin: env.POLL_INTERVAL_MIN }, "Vacancy Monitor started");
