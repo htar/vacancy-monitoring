@@ -4,6 +4,7 @@ import { SOURCE_IDS, salaryUsd } from "./search.js";
 import type { Vacancy } from "./types.js";
 import type { ScanSummary } from "./scanner.js";
 import { formatReport, localDate, previousDate } from "./report.js";
+import { log } from "./logger.js";
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -48,7 +49,7 @@ export class TelegramBot {
           if (response) await this.sendText(response);
         }
       } catch (error) {
-        console.error("Bot polling failed:", error);
+        log.warn({ err: error }, "Bot API polling failed");
         if (!this.stopped) await new Promise((resolve) => setTimeout(resolve, 3000));
       }
     }
